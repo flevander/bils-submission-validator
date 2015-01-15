@@ -46,7 +46,9 @@ public class App
 			List<String> errors = new ArrayList<String>();
 			int filesSubmitted=0;
 			int filesValidated=0;
+			int filesNotSupported=0;
 			int filesNotFound=0;
+			int invalidFiles=0;
 			while ((line = reader.readLine()) != null)
 			{
 				String[] fields = line.split("\\t");
@@ -106,6 +108,7 @@ public class App
 							else
 							{
 								System.out.println("Validation of file not supported");
+								filesNotSupported++;
 							}
 							if (!toValidate.equals(fields[3]))
 							{
@@ -117,14 +120,17 @@ public class App
 							responses.add("File not found");
 							filesNotFound++;
 						}
+						boolean ok = true;
 						for (String s : responses)
 						{
 							if (s != null)
 							{
 								System.out.println("Result:" + s);
 								errors.add(fields[3]+":"+s);
+								ok=false;
 							}
 						}
+						if (!ok) invalidFiles++;
 					}
 					catch (URISyntaxException e)
 					{
@@ -142,6 +148,8 @@ public class App
 			}
 			System.out.println("Number of files:"+filesSubmitted);
 			System.out.println("Number of validated files:"+filesValidated);
+			if (filesValidated>0) System.out.println("Invalid files:"+invalidFiles);
+			if (filesNotSupported>0) System.out.println("Files without validation support:"+filesNotSupported);
 			if (filesNotFound>0) System.out.println("Files not found:"+filesNotFound);
 		}
 		catch (FileNotFoundException e)
@@ -164,6 +172,7 @@ public class App
 	 * @return
 	 * @throws MalformedURLException, IOException
 	 */
+	@SuppressWarnings("restriction")
 	private static HttpURLConnection getConnection(String url_str)
 			throws MalformedURLException, IOException
 	{
