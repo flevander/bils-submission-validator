@@ -117,7 +117,8 @@ public class App
 						}
 						else
 						{
-							responses.add("File not found");
+							System.out.println("File not found");
+							errors.add("File not found:"+fields[3]);
 							filesNotFound++;
 						}
 						boolean ok = true;
@@ -148,8 +149,8 @@ public class App
 			}
 			System.out.println("Number of files:"+filesSubmitted);
 			System.out.println("Number of validated files:"+filesValidated);
-			if (filesValidated>0) System.out.println("Invalid files:"+invalidFiles);
 			if (filesNotSupported>0) System.out.println("Files without validation support:"+filesNotSupported);
+			if (filesValidated>0) System.out.println("Invalid files:"+invalidFiles);
 			if (filesNotFound>0) System.out.println("Files not found:"+filesNotFound);
 		}
 		catch (FileNotFoundException e)
