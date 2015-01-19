@@ -1,7 +1,6 @@
 package se.bils.bils_submission_validator;
 
 import uk.ac.ebi.pride.validator.IValidator;
-import uk.ac.ebi.pride.validator.schema.MzMLSchemaValidator;
 import uk.ac.ebi.pride.validator.schema.PxXmlSchemaValidatorFactory;
 
 import java.io.BufferedReader;
@@ -14,8 +13,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -44,114 +41,99 @@ public class App
 			IValidator<File, String> schemaValidator = PxXmlSchemaValidatorFactory
 				.getPxXmlSchemaValidator();
 			List<String> errors = new ArrayList<String>();
-			int filesSubmitted=0;
-			int filesValidated=0;
-			int filesNotSupported=0;
-			int filesNotFound=0;
-			int invalidFiles=0;
+			int filesSubmitted = 0;
+			int filesValidated = 0;
+			int filesNotSupported = 0;
+			int filesNotFound = 0;
+			int invalidFiles = 0;
 			while ((line = reader.readLine()) != null)
 			{
 				String[] fields = line.split("\\t");
 				if (fields[0].equals("FME") && fields.length > 3)
 				{
-					try
+					filesSubmitted++;
+					System.out.println("Validating:" + fields[3]);
+					String toValidate = fields[3];
+					if (toValidate.startsWith("http"))
 					{
-						filesSubmitted++;
-						System.out.println("Validating:" + fields[3]);
-						String toValidate = fields[3];
-						if (toValidate.startsWith("http"))
+						String fileName = toValidate.substring(toValidate
+							.lastIndexOf('/') + 1);
+						System.out.print("Downloading file...");
+						HttpURLConnection connection = getConnection(toValidate);
+						InputStream fis = connection.getInputStream();
+						ReadableByteChannel rbc = Channels.newChannel(fis);
+						FileOutputStream fos = new FileOutputStream(fileName);
+						fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+						fos.close();
+						System.out.println("Downloaded to " + fileName);
+						toValidate = fileName;
+					}
+					File fileToValidate = new File(toValidate);
+					List<String> responses = new ArrayList<String>();
+					if (fileToValidate.exists())
+					{
+						if (schemaValidator.support(fileToValidate))
 						{
-							String fileName = toValidate.substring(toValidate
-								.lastIndexOf('/') + 1);
-							System.out.print("Downloading file...");
-							HttpURLConnection connection = getConnection(toValidate);
-							InputStream fis = connection.getInputStream();
-							ReadableByteChannel rbc = Channels.newChannel(fis);
-							FileOutputStream fos = new FileOutputStream(
-								fileName);
-							fos.getChannel().transferFrom(rbc, 0,
-								Long.MAX_VALUE);
-							fos.close();
-							System.out.println("Downloaded to " + fileName);
-							toValidate = fileName;
-						}
-						File fileToValidate = new File(toValidate);
-						List<String> responses = new ArrayList<String>();
-						if (fileToValidate.exists())
-						{
-							if (schemaValidator.support(fileToValidate))
+							filesValidated++;
+							try
 							{
-								filesValidated++;
-								try
-								{
-									responses = schemaValidator
-										.validate(fileToValidate);
-									if (!responses.isEmpty() && (toValidate
-										.endsWith(".mzML") || toValidate
-										.endsWith(".mzML.gz")) && responses
-										.get(0).contains("indexed"))
-									{
-										System.out
-											.println("Validating indexed mzML");
-										MzMLSchemaValidator mzmlSchemaValidator = new MzMLSchemaValidator(
-											new URI(
-												"http://www.psidev.info/files/ms/mzML/xsd/mzML1.1.1_idx.xsd"));
-										responses = mzmlSchemaValidator
-											.validate(fileToValidate);
-									}									
-								}
-								catch (IllegalStateException e)
-								{
-									responses.add("Cannot validate file:" + e);
-								}
+								responses = schemaValidator
+									.validate(fileToValidate);
 							}
-							else
+							catch (IllegalStateException e)
 							{
-								System.out.println("Validation of file not supported");
-								filesNotSupported++;
-							}
-							if (!toValidate.equals(fields[3]))
-							{
-								fileToValidate.delete();
+								responses.add("Cannot validate file:" + e);
 							}
 						}
 						else
 						{
-							System.out.println("File not found");
-							errors.add("File not found:"+fields[3]);
-							filesNotFound++;
+							System.out
+								.println("Validation of file not supported");
+							filesNotSupported++;
 						}
-						boolean ok = true;
-						for (String s : responses)
+						if (!toValidate.equals(fields[3]))
 						{
-							if (s != null)
-							{
-								System.out.println("Result:" + s);
-								errors.add(fields[3]+":"+s);
-								ok=false;
-							}
+							fileToValidate.delete();
 						}
-						if (!ok) invalidFiles++;
 					}
-					catch (URISyntaxException e)
+					else
 					{
-						System.out.println("Incorrect URI:" + e);
+						System.out.println("File not found");
+						errors.add("File not found:" + fields[3]);
+						filesNotFound++;
 					}
+					boolean ok = true;
+					for (String s : responses)
+					{
+						if (s != null)
+						{
+							System.out.println("Result:" + s);
+							errors.add(fields[3] + ":" + s);
+							ok = false;
+						}
+					}
+					if (!ok)
+						invalidFiles++;
 				}
 
 			}
 			reader.close();
 			System.out.println("VALIDATION SUMMARY");
-			if (errors.size()>0) System.out.println("Detected errors:");
-			for (String s:errors)
+			if (errors.size() > 0)
+				System.out.println("Detected errors:");
+			for (String s : errors)
 			{
 				System.out.println(s);
 			}
-			System.out.println("Number of files:"+filesSubmitted);
-			System.out.println("Number of validated files:"+filesValidated);
-			if (filesNotSupported>0) System.out.println("Files without validation support:"+filesNotSupported);
-			if (filesValidated>0) System.out.println("Invalid files:"+invalidFiles);
-			if (filesNotFound>0) System.out.println("Files not found:"+filesNotFound);
+			System.out.println("Number of files:" + filesSubmitted);
+			System.out.println("Number of validated files:" + filesValidated);
+			if (filesNotSupported > 0)
+				System.out
+					.println("Files without validation support:" + filesNotSupported);
+			if (filesValidated > 0)
+				System.out.println("Invalid files:" + invalidFiles);
+			if (filesNotFound > 0)
+				System.out.println("Files not found:" + filesNotFound);
 		}
 		catch (FileNotFoundException e)
 		{
